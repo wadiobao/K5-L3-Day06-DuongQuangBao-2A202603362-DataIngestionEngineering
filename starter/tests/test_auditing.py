@@ -50,25 +50,48 @@ class AuditPrecheckTests(unittest.TestCase):
             "gold_locations": [{"gold_source_id": "book", "gold_page": 1}],
             "hits": [hit],
         }
+        traces = [
+            {
+                **trace,
+                "strategy": strategy,
+                "hits": [
+                    {
+                        **hit,
+                        "metadata": {
+                            **hit["metadata"],
+                            "section_id": (
+                                "chapter-i" if strategy == "C" else "chapter-ii"
+                            ),
+                        },
+                    }
+                ],
+            }
+            for strategy in ("A", "B", "C")
+        ]
 
         with tempfile.TemporaryDirectory() as temporary_directory:
             output_dir = Path(temporary_directory)
             inventory_path = write_source_unit_inventory(output_dir, [page])
-            metadata_path = write_metadata_precheck(output_dir, [page], [trace])
+            metadata_path = write_metadata_precheck(output_dir, [page], traces)
             grounding_path = write_grounding_precheck(output_dir, [trace])
 
             with metadata_path.open(encoding="utf-8", newline="") as file:
-                metadata_row = next(csv.DictReader(file))
+                metadata_rows = list(csv.DictReader(file))
             with grounding_path.open(encoding="utf-8", newline="") as file:
                 grounding_row = next(csv.DictReader(file))
             with inventory_path.open(encoding="utf-8", newline="") as file:
                 inventory_row = next(csv.DictReader(file))
 
-        self.assertEqual(metadata_row["page_exists"], "True")
-        self.assertEqual(metadata_row["required_metadata_present"], "True")
-        self.assertEqual(metadata_row["metadata_matches_source_page"], "True")
-        self.assertEqual(metadata_row["filter_compliant"], "True")
-        self.assertEqual(metadata_row["metadata_useful"], "")
+        self.assertEqual(
+            {row["strategy"]: row["filter_compliant"] for row in metadata_rows},
+            {"A": "False", "B": "False", "C": "True"},
+        )
+        self.assertTrue(all(row["page_exists"] == "True" for row in metadata_rows))
+        self.assertTrue(
+            all(row["required_metadata_present"] == "True" for row in metadata_rows)
+        )
+        self.assertEqual(metadata_rows[2]["metadata_matches_source_page"], "True")
+        self.assertTrue(all(row["metadata_useful"] == "" for row in metadata_rows))
         self.assertEqual(grounding_row["exact_evidence_ranks"], "1")
         self.assertEqual(grounding_row["human_score_0_to_2"], "")
         self.assertEqual(inventory_row["unit_id"], "book-unit-001")

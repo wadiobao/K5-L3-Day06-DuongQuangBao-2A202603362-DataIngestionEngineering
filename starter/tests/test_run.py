@@ -8,7 +8,7 @@ from src.run import _manual_table, _write_audits
 
 
 class RunAuditTests(unittest.TestCase):
-    def test_filter_compliance_is_only_scored_for_filtered_strategy_c(self) -> None:
+    def test_filter_compliance_is_scored_for_every_strategy(self) -> None:
         question = {
             "id": "q1",
             "split": "test",
@@ -80,11 +80,11 @@ class RunAuditTests(unittest.TestCase):
         compliance = {
             row["strategy"]: row["filter_compliant"] for row in audit_rows
         }
-        self.assertEqual(compliance, {"A": "N/A", "B": "N/A", "C": "True"})
+        self.assertEqual(compliance, {"A": "False", "B": "False", "C": "True"})
 
         report_rows = _manual_table(traces).splitlines()
-        self.assertIn("| A | Chưa chấm /2 | Chưa chấm | N/A | Chưa chấm |", report_rows)
-        self.assertIn("| B | Chưa chấm /2 | Chưa chấm | N/A | Chưa chấm |", report_rows)
+        self.assertIn("| A | Chưa chấm /2 | Chưa chấm | 0/1 (0.0%) | Chưa chấm |", report_rows)
+        self.assertIn("| B | Chưa chấm /2 | Chưa chấm | 0/1 (0.0%) | Chưa chấm |", report_rows)
         self.assertIn("| C | Chưa chấm /2 | Chưa chấm | 1/1 (100.0%) | Chưa chấm |", report_rows)
 
 

@@ -219,7 +219,7 @@ def _manual_table(
         filtered_traces = [
             trace
             for trace in strategy_traces
-            if strategy == "C" and trace["filters"]
+            if trace["filters"]
         ]
         compliant = sum(bool(trace["filter_compliant"]) for trace in filtered_traces)
         checked = len(filtered_traces)
@@ -293,9 +293,7 @@ def _write_audits(
                         "section_id": metadata.get("section_id", ""),
                         "metadata_correct": "",
                         "metadata_useful": "",
-                        "filter_compliant": (
-                            filter_ok if strategy == "C" and filters else "N/A"
-                        ),
+                        "filter_compliant": filter_ok if filters else "N/A",
                         "rationale": "",
                     }
                 )

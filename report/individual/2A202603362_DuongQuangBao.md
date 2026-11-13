@@ -21,18 +21,19 @@
 | C | dev | 13/15 (86.7%) | 15/15 (100.0%) | 127 | 0.40s (incremental) | Check Gemini billing |
 | C | test | 4/5 (80.0%) | 4/5 (80.0%) | 127 | 0.40s (incremental) | Check Gemini billing |
 
-| Strategy | Coherence hiện có /2 (n; chờ xác nhận) | Metadata hiện có đủ và đúng (n/N; chờ xác nhận) | Filter tuân thủ (n/N hoặc N/A) | Grounding hiện có 0/1/2 (số câu; chờ xác nhận) |
+| Strategy | Coherence đã ghi /2 (n; chờ xác nhận) | Metadata đủ/đúng, hữu dụng (n/N; chờ xác nhận) | Filter đúng trên test (câu; top-3 hits) | Grounding đã ghi 0/1/2 (n; chờ xác nhận) |
 |---|---|---|---|---|
-| A | 0.00/2 (n=10) | 15/15 | N/A | 0/0/5; trung bình 2.00/2 |
-| B | 2.00/2 (n=10) | 15/15 | N/A | 0/0/5; trung bình 2.00/2 |
-| C | 2.00/2 (n=10) | 15/15 | 2/2 câu filter (6/6 hit) | 0/1/4; trung bình 1.80/2 |
+| A | 0.00/2 (n=10) | 15/15 | 0/2; 3/6 | 0/0/5; trung bình 2.00/2 |
+| B | 2.00/2 (n=10) | 15/15 | 1/2; 5/6 | 0/0/5; trung bình 2.00/2 |
+| C | 2.00/2 (n=10) | 15/15 | 2/2; 6/6 | 0/1/4; trung bình 1.80/2 |
 
 Đường dẫn trace và audit: Trace `results/top3_trace.jsonl`; coherence `results/coherence_audit.csv`; metadata `results/metadata_grounding_audit.csv`; grounding `results/grounding_precheck.csv`. Precheck và inventory: `results/metadata_precheck.csv`, `results/grounding_precheck.csv`, `results/source_unit_inventory.csv`. Mẫu coherence là 10 source-unit đầu theo thứ tự; cấu hình/giả thuyết ở `artifacts/experiment_log.csv`.
 
-**Phương pháp và trạng thái xác nhận nhãn:** Gemini 2.5 Flash đã được dùng để tạo gợi ý coherence/grounding riêng theo rubric; mã và prompt nằm trong `starter/src/judge_suggestions.py`. Trong lần rà soát hiện tại, cả điểm lẫn rationale trong nhãn cuối trùng gợi ý AI ở 30/30 dòng coherence và 15/15 dòng grounding. Đây là tín hiệu cần công khai, không phải bằng chứng rằng tác giả đã/không đã xem xét từng dòng. Các nhãn này chưa được xác nhận độc lập trong hồ sơ. Metadata 45 dòng được điền dựa trên precheck tự động; đánh giá usefulness và rationale cũng cần tác giả đối chiếu nguồn/trace. Vì vậy, bảng audit trên là số liệu đang ghi nhận, chưa nên trình bày như đánh giá thủ công độc lập cho tới khi tác giả xác nhận hoặc sửa nhãn. Người chấm là tác giả; cần nêu nguy cơ thiên lệch tự đánh giá.
+**Phương pháp và trạng thái xác nhận nhãn:** Gemini 2.5 Flash đã được dùng để tạo gợi ý coherence/grounding riêng theo rubric; mã và prompt nằm trong `starter/src/judge_suggestions.py`. Trong lần rà soát hiện tại, cả điểm lẫn rationale trong nhãn cuối trùng gợi ý AI ở 30/30 dòng coherence và 15/15 dòng grounding. Đây là tín hiệu cần công khai, không phải bằng chứng rằng tác giả đã/không đã xem xét từng dòng. Các nhãn này chưa được xác nhận độc lập trong hồ sơ. File `metadata_grounding_audit.csv` hiện ghi 45/45 hit đủ/đúng và hữu dụng, kèm rationale (15/15 mỗi cấu hình); cần đối chiếu với trace/inventory và xác nhận đây là đánh giá của người chấm trước khi gọi là nhãn thủ công. Các kết quả audit trên là nhãn đang được lưu, không phải xác nhận độc lập. Người chấm là tác giả; cần nêu nguy cơ thiên lệch tự đánh giá.
 
 ## Phân tích và kết luận
 - So sánh A–B và B–C: Dev Evidence Hit@3 A/B/C: 15/15, 15/15, 15/15; A–B đo chunking, B–C đo filter. Test chỉ báo cáo, không dùng để chọn cấu hình.
+- Tuân thủ filter trên hai câu test có filter (q16, q20): A có 0/2 câu mà cả top-3 cùng đúng chương (3/6 hit đúng chương); B có 1/2 câu (5/6 hit); C có 2/2 câu (6/6 hit). A/B không áp dụng filter; đây là phép đo top-3 có tình cờ thuộc đúng chương không, còn C áp dụng filter trước truy xuất.
 - Chiến lược chọn, đánh đổi, điều kiện áp dụng: Trên dev, B và C hòa nhau ở Evidence Hit@3 (15/15) và Hit@1 (13/15), nên tiêu chí đã đăng ký không phân định được hai cấu hình. B là baseline đơn giản hơn; C phù hợp khi câu hỏi có filter theo chapter. Trên test cả ba đạt 4/5 Evidence Hit@3.
 - Ví dụ lỗi và giới hạn: q18 (gold `alice-wonderland`, logical page 40) là exact-evidence Hit@3 miss ở cả A/B/C; top-3 có nội dung liên quan nhưng không khớp nguyên văn gold quote. Mẫu coherence của A có 10/10 chunk bị cắt giữa ý (ví dụ chunk `5b7b9437c941bf049ffd5bb2`, page 1), trong khi B/C đạt 2/2 ở 10 mẫu. Test chỉ có 5 câu và corpus là một tác phẩm tiếng Anh nên không đại diện rộng.
 - Chi phí, xác nhận nhãn và nộp bài: `run_metadata.json` hiện ghi `cost_usd: 0` và `cost_note: "Free tier"`; cần đảm bảo đã đối chiếu billing thực tế, bao gồm cả các lần gọi Gemini judge. Nhãn audit chờ tác giả xác nhận như mô tả ở trên. Repo bài nộp đã được điền trong `STUDENT.md`; commit chốt vẫn còn trống.

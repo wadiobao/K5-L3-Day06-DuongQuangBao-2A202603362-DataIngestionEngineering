@@ -125,7 +125,7 @@ def write_metadata_precheck(
                 and hit.get("page") == page.page
             )
             filter_compliant: bool | str = "N/A"
-            if trace["strategy"] == "C" and filters:
+            if filters:
                 filter_compliant = all(
                     metadata.get(key) == value for key, value in filters.items()
                 )
@@ -211,7 +211,7 @@ def write_manual_review_guide(
 Các precheck tự động chỉ là đối chiếu dữ liệu, không phải điểm rubric. Nếu có `coherence_ai_suggestions.csv` hoặc `grounding_ai_suggestions.csv`, đó chỉ là gợi ý; hãy xem trace và nguồn rồi tự điền nhãn cuối.
 
 1. **Coherence — {coherence_count} dòng:** trong `coherence_audit.csv`, điền `score_0_to_2` và `rationale`. Chấm 0 nếu chunk bị cắt/không hiểu được, 1 nếu thiếu một phần ngữ cảnh, 2 nếu tự hiểu được và giữ trọn ý.
-2. **Metadata — {metadata_count} hit:** trong `metadata_grounding_audit.csv`, xác nhận cột `metadata_correct`, đánh giá `metadata_useful`, ghi `rationale`; đối chiếu các cột `metadata_precheck.csv` với `source_unit_inventory.csv`. Filter của A/B là N/A; với C, kiểm tra lại các hit của câu có filter.
+2. **Metadata — {metadata_count} hit:** trong `metadata_grounding_audit.csv`, xác nhận cột `metadata_correct`, đánh giá `metadata_useful`, ghi `rationale`; đối chiếu các cột `metadata_precheck.csv` với `source_unit_inventory.csv`. Với mọi cấu hình, kiểm tra top-3 có khớp filter nêu trong câu hỏi hay không; C là cấu hình thực sự áp dụng filter.
 3. **Grounding — {grounding_count} cặp câu/strategy:** trong `grounding_precheck.csv`, chấm **top-3 gộp lại**: 0 = không có bằng chứng; 1 = có bằng chứng nhưng thiếu điều kiện/ngữ cảnh; 2 = đủ để trả lời và truy nguồn. Điền `human_score_0_to_2` và `human_rationale`. `exact_evidence_ranks` chỉ là gợi ý tự động, không tự quyết định điểm.
 4. **Chi phí:** kiểm tra Google AI Studio, rồi cập nhật số tiền thực tế (hoặc 0 nếu xác nhận không bị tính phí) vào `run_metadata.json` và báo cáo. Không suy ra chi phí từ số request.
 5. **Thông tin nộp bài:** hoàn tất các trường còn trống trong `../STUDENT.md` (chủ đề/corpus, repo bài nộp, commit chốt).
