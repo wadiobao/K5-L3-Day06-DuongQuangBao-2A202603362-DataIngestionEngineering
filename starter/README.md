@@ -1,65 +1,72 @@
-# Starter · PostgreSQL + pgvector
+# Starter · Gemini + PostgreSQL/pgvector
 
-Bộ khởi động **tùy chọn** cho lab cá nhân. Docker Compose tạo PostgreSQL + pgvector local; các file trong `src/` là **khung pseudocode có TODO**, chưa đọc tài liệu, tạo embedding, lưu vector hay chạy benchmark. Bạn cần tự hiện thực. Vẫn có thể chọn Qdrant, Chroma hoặc vector store tương đương theo [GUIDE.md](../GUIDE.md).
+Starter hiện thực một baseline cho lab: corpus công khai, pipeline ingest/chunk/embed/vector search, ba cấu hình A/B/C, benchmark dev/test và report. Kết quả grounding, metadata correctness và coherence vẫn cần người chấm; chương trình không tự bịa nhãn hay câu trả lời LLM.
 
-## Cấu trúc
+## Corpus và quyền sử dụng
 
-```text
-starter/
-├── docker-compose.yml     # PostgreSQL 16 + pgvector, chỉ mở cổng local
-├── init.sql               # bật extension khi tạo database mới
-├── requirements.txt       # psycopg, pypdf và python-dotenv
-├── .env.example           # cấu hình mẫu; copy thành .env
-├── scripts/check_setup.py # kiểm tra kết nối và extension (đã chạy được)
-├── src/
-│   ├── models.py          # cấu trúc dữ liệu mẫu
-│   ├── ingestion.py       # TODO: đọc / chuẩn hóa tài liệu
-│   ├── chunking.py        # TODO: chia chunk
-│   ├── embeddings.py      # TODO: chọn model API hoặc local
-│   ├── store.py           # TODO: lưu vector, metadata và filter
-│   ├── evaluation.py      # TODO: chấm truy xuất, lưu trace
-│   └── run.py             # TODO: kết nối các bước thành pipeline
-├── data/                  # bạn tự chuẩn bị corpus được phép sử dụng
-└── results/               # lưu kết quả của bạn
+Mẫu dùng *Alice's Adventures in Wonderland*, Project Gutenberg eBook #11. Tác phẩm gốc thuộc public domain ở Hoa Kỳ; nếu ở ngoài Hoa Kỳ, tự xác minh luật địa phương trước khi tái phân phối. Nguồn, giấy phép, thời điểm truy cập và quy tắc chia thành source unit nằm ở `../data/manifest.json`; corpus tại `../data/alice-wonderland.txt`; bộ câu hỏi/evidence tại `../benchmark/questions.json`.
+
+Corpus gồm các đơn vị nội dung theo chương, mỗi đơn vị tối thiểu 1.500 ký tự đã chuẩn hóa. Nếu file chưa có, runner tải từ URL trong manifest. Có thể tải trước:
+
+```bash
+cd starter
+python -m scripts.fetch_corpus
 ```
 
-## 1. Cài và kiểm tra database
+## Setup
 
-Cần Docker Desktop hoặc Docker Engine + Compose, Python **3.11–3.14**, và mạng để tải image/dependencies lần đầu. Các lệnh sau chạy từ thư mục `starter/`:
+Cần Python **3.11–3.14**, Docker Compose và mạng để tải corpus/dependencies lần đầu.
 
 ```bash
 cd starter
 python3 -m venv .venv
+# macOS/Linux
+source .venv/bin/activate
+python -m pip install -r requirements.txt
+cp .env.example .env  # chỉ khi chưa có starter/.env; không ghi đè file đang có key
 ```
 
-Kích hoạt `.venv`: macOS/Linux dùng `source .venv/bin/activate`; Windows PowerShell dùng `.venv\Scripts\Activate.ps1`. Sau đó:
+Trong `.env`, điền `GEMINI_API_KEY`. Cấu hình mẫu dùng `EMBEDDING_MODEL=gemini-embedding-2` và `EMBEDDING_DIMENSIONS=768`. Runner mặc định giới hạn tốc độ ở 20.000 token/phút ước tính để giảm lỗi quota; điều chỉnh `GEMINI_EMBEDDING_TPM_LIMIT` theo quota thực tế của project nếu cần. Không in hoặc commit API key. Model embedding khác hoặc số chiều khác phải dùng nhất quán cho document/query và bảng pgvector.
+
+Khởi động và kiểm tra database:
 
 ```bash
-python -m pip install -r requirements.txt
-# macOS/Linux: cp .env.example .env
-# Windows PowerShell: Copy-Item .env.example .env
 docker compose -p day6_student_starter up -d --wait
 python scripts/check_setup.py
 ```
 
-Kỳ vọng: hiện tên database, phiên bản PostgreSQL và pgvector, sau đó `Setup OK`. Đây **chỉ là kiểm tra hạ tầng**, không phải kết quả benchmark. Docker dùng cổng `127.0.0.1:55433` và mật khẩu cố định **chỉ dùng local cho lab**; nếu cổng bận, sửa đồng thời port trong `docker-compose.yml` và `DATABASE_URL` trong `.env`. `init.sql` chỉ chạy khi volume mới được tạo; nếu database sẵn có chưa bật extension, xem log Docker và kiểm tra cấu hình thay vì xóa volume chứa dữ liệu.
+## Chạy lab
 
-Dừng container nhưng giữ dữ liệu:
+Chuẩn bị corpus, benchmark, chunk statistics và report mà **không gọi Gemini hoặc database**:
 
 ```bash
-docker compose -p day6_student_starter stop
+python -m src.run --prepare-only
 ```
 
-## 2. Chọn embedding model
+Chạy đủ ingest/retrieval (gọi Gemini API và dùng database local):
 
-Điền key tương ứng trong `.env` nếu dùng OpenRouter, OpenAI hoặc Gemini; **không commit `.env`**. Model local không cần API key. `requirements.txt` chỉ có dependencies cơ bản: tự cài SDK hoặc thư viện local phù hợp với model bạn chọn và ghi lại version/lệnh cài trong báo cáo. Ghi tên model và số chiều; dùng cùng model cho toàn bộ chiến lược và vector query tương thích vector document.
+```bash
+python -m src.run
+```
 
-## 3. Hoàn thiện pipeline
+Tùy chọn: tạo **gợi ý** coherence/grounding bằng Gemini (dùng quota/API riêng; không điền điểm cuối vào audit):
 
-1. Đặt corpus vào `data/` hoặc cung cấp manifest/hướng dẫn truy cập. Đọc [GUIDE.md](../GUIDE.md) về **30 trang nội dung**, quyền dữ liệu và metadata.
-2. Hoàn thiện từng hàm TODO trong `src/`. Lưu ID tài liệu, nguồn, trang/vị trí và ít nhất một trường filter có ích.
-3. Xây ít nhất ba cấu hình; ví dụ A fixed-size, B theo đoạn, C như B nhưng có filter. Cần cùng corpus, model và benchmark; nạp lại không nhân đôi và xử lý chunk cũ khi dữ liệu đổi.
-4. Tự viết ít nhất 20 câu hỏi kèm evidence, tách dev/test trước khi thử theo [BENCHMARK.md](../BENCHMARK.md). Lưu trace top-3 và báo cáo đủ năm tiêu chí.
-5. Sau khi hoàn thiện, chạy `python -m src.run` từ thư mục `starter/`. Trước khi làm TODO, lệnh này **chủ động báo `NotImplementedError`**.
+```bash
+python -m src.judge_suggestions --model gemini-2.5-flash
+```
 
-Lưu code, cấu hình, kết quả và lệnh chạy để người chấm tái lập; không commit key, dữ liệu mật hoặc dữ liệu không có quyền chia sẻ.
+Gợi ý được lưu riêng ở `../results/coherence_ai_suggestions.csv` và `../results/grounding_ai_suggestions.csv`; hãy kiểm tra từng gợi ý với nguồn/trace, rồi xác nhận hoặc sửa nhãn audit chính thức.
+
+Pipeline dùng cùng corpus/model/câu hỏi cho cả ba chiến lược:
+
+- **A:** fixed-size 1.500 ký tự, overlap 100.
+- **B:** chunk theo đoạn, tối đa 1.500 ký tự.
+- **C:** cùng chunk/embedding với B, chỉ thêm filter `section_id` nếu câu hỏi nêu chương.
+
+Cấu hình chọn trước khi xem test: tối đa Evidence Hit@3 trên dev, tie-break bằng Hit@1; test chỉ để báo cáo. Câu hỏi có `filter` được áp dụng chỉ cho C; top-3 của A/B được đo xem có tự thỏa filter hay không.
+
+## Output
+
+`../results/` chứa benchmark đã xác minh theo source unit, inventory ranh giới/độ dài, chunk stats, Hit@1/Evidence Hit@3, top-3 trace (`top3_trace.jsonl`), run metadata và audit. `metadata_precheck.csv` đối chiếu metadata với source unit; `grounding_precheck.csv` gom exact-evidence hits theo từng câu/strategy nhưng không tự gán điểm rubric. Runner sinh `manual_review.md` để hướng dẫn xác nhận nhãn. Báo cáo được tạo từ `../REPORT_TEMPLATE.md` tại `../report/individual/2A202603362_DuongQuangBao.md`. `coherence_audit.csv` ghi 10 source-unit đầu cho cả ba chiến lược; `metadata_grounding_audit.csv` chuẩn bị top-3 của 5 câu test để audit metadata. Nếu dùng Gemini judge, giữ gợi ý tách riêng, ghi rõ phương pháp trong báo cáo và tự xem xét từng nhãn theo nguồn/trace trước khi gọi đó là nhãn thủ công. Precheck không thay đánh giá usefulness; không suy ra nhãn chỉ từ cosine score.
+
+Gemini có thể tính phí hoặc giới hạn quota. Runner ghi số request và token nếu API trả về; chi phí chính xác phải kiểm tra tại Google AI Studio. `--prepare-only` không dùng key và không gọi dịch vụ.
